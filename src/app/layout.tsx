@@ -37,7 +37,7 @@ export default function RootLayout({
       lang="en"
       className={`${fredoka.variable} ${bangers.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col noise">{children}</body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

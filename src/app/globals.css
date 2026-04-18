@@ -38,6 +38,52 @@ body {
     #0b0416;
 }
 
+/* Fixed Johnny backdrop — full-bleed, color-pushed, spotlight-masked
+   so his face sits in the upper-third of the viewport and fades out
+   where the wheel + UI panels sit. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("/Johnny.png");
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: min(130vw, 780px) auto;
+  filter: saturate(1.15) contrast(1.05) brightness(0.85);
+  /* Spotlight on face; fade everything else to transparent */
+  -webkit-mask-image: radial-gradient(
+    ellipse 60% 38% at 50% 24%,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.85) 30%,
+    rgba(0, 0, 0, 0.35) 55%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    ellipse 60% 38% at 50% 24%,
+    rgba(0, 0, 0, 1) 0%,
+    rgba(0, 0, 0, 0.85) 30%,
+    rgba(0, 0, 0, 0.35) 55%,
+    transparent 75%
+  );
+  opacity: 0.85;
+}
+
+/* Neon rim/vignette on top of Johnny to blend him with the bar UI */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 22%, transparent 30%, rgba(11,4,22,0.55) 70%, rgba(11,4,22,0.9) 100%),
+    radial-gradient(circle at 50% 22%, rgba(255, 46, 147, 0.18), transparent 45%),
+    radial-gradient(circle at 50% 22%, rgba(18, 231, 255, 0.12), transparent 55%);
+  mix-blend-mode: normal;
+}
+
 .font-display {
   font-family: var(--font-bangers), Impact, sans-serif;
   letter-spacing: 0.05em;
