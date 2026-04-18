@@ -41,9 +41,12 @@ export default function Game() {
   // responsive wheel size
   useEffect(() => {
     const onResize = () => {
-      const w = Math.min(window.innerWidth - 24, 460);
-      const h = window.innerHeight * 0.55;
-      setSize(Math.max(260, Math.min(w, h, 460)));
+      const w = Math.min(window.innerWidth - 24, 440);
+      // reserve vertical space for title + stats + spin button + safe-area
+      // so those remain visible without scrolling (drunk-customer rule).
+      const reserved = 260;
+      const h = window.innerHeight - reserved;
+      setSize(Math.max(220, Math.min(w, h, 440)));
     };
     onResize();
     window.addEventListener("resize", onResize);
@@ -152,24 +155,25 @@ export default function Game() {
   const resultMeta = result ? RARITY_META[result.rarity] : null;
 
   return (
-    <main className="relative z-10 flex flex-col items-center gap-4 px-4 pt-4 pb-10 min-h-dvh">
-      <header className="w-full max-w-md text-center pt-2">
-        <p className="text-xs uppercase tracking-[0.3em] text-pink-300/80">
-          Johnny's
+    <main
+      className="relative z-10 flex flex-col items-center gap-2 px-3 min-h-[100dvh]"
+      style={{
+        paddingTop: "max(8px, env(safe-area-inset-top))",
+        paddingBottom: "max(8px, env(safe-area-inset-bottom))",
+      }}
+    >
+      <header className="w-full max-w-md text-center leading-none">
+        <p className="font-display text-4xl sm:text-5xl neon-text tracking-wider">
+          JOHNNY'S
         </p>
-        <h1 className="font-display text-5xl sm:text-6xl neon-text leading-none">
-          COCKTAIL
-          <br />
-          LOTTERY
+        <h1 className="font-display text-2xl sm:text-3xl neon-cyan-text tracking-[0.25em] mt-0.5">
+          COCKTAIL LOTTERY
         </h1>
-        <p className="mt-1 text-xs text-white/60">
-          Spin it. Sip it. Don't sue Johnny.
-        </p>
       </header>
 
       <StatsBar state={state} />
 
-      <div className="relative flex items-center justify-center mt-2">
+      <div className="relative flex items-center justify-center">
         {/* Pointer */}
         <div
           className="absolute -top-2 left-1/2 -translate-x-1/2 z-20"
@@ -195,7 +199,7 @@ export default function Game() {
       <button
         onClick={spin}
         disabled={spinning}
-        className="btn-neon mt-2 w-full max-w-md rounded-2xl py-5 font-display text-3xl text-white tracking-wider"
+        className="btn-neon w-full max-w-md rounded-2xl py-4 font-display text-3xl text-white tracking-wider"
         aria-label="Spin the wheel"
       >
         {spinning ? "SPINNING…" : "SPIN THE WHEEL"}
@@ -270,8 +274,8 @@ function Stat({
   suffix?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-3">
-      <div className={`font-display text-3xl ${tint}`}>
+    <div className="flex flex-col items-center justify-center py-2">
+      <div className={`font-display text-2xl ${tint}`}>
         {value}
         {suffix ? ` ${suffix}` : ""}
       </div>
@@ -284,14 +288,14 @@ function Stat({
 
 function Legend() {
   return (
-    <div className="flex flex-wrap justify-center gap-2 max-w-md">
+    <div className="flex flex-wrap justify-center gap-1.5 max-w-md">
       {(["common", "rare", "epic", "legendary"] as const).map((r) => {
         const m = RARITY_META[r];
         return (
           <span
             key={r}
-            className="text-[10px] uppercase tracking-widest px-2 py-1 rounded-full glass"
-            style={{ color: m.glow, boxShadow: `0 0 12px ${m.glow}55` }}
+            className="text-[9px] uppercase tracking-widest px-2 py-0.5 rounded-full glass"
+            style={{ color: m.glow, boxShadow: `0 0 10px ${m.glow}44` }}
           >
             {m.label} ×{m.mult}
           </span>
@@ -304,28 +308,26 @@ function Legend() {
 function BadgesGrid({ unlocked }: { unlocked: Set<string> }) {
   return (
     <div className="w-full max-w-md">
-      <div className="text-[10px] uppercase tracking-[0.3em] text-white/50 mb-2 text-center">
+      <div className="text-[9px] uppercase tracking-[0.3em] text-white/50 mb-1 text-center">
         Bar Card · Badges
       </div>
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-8 gap-1.5">
         {BADGES.map((b) => {
           const got = unlocked.has(b.id);
           return (
             <div
               key={b.id}
-              className={`glass rounded-xl flex flex-col items-center justify-center py-2 transition ${
+              className={`glass rounded-lg flex items-center justify-center aspect-square transition ${
                 got ? "opacity-100" : "opacity-30 grayscale"
               }`}
+              title={b.label}
               style={
                 got
-                  ? { boxShadow: "0 0 20px rgba(255,209,102,0.4)" }
+                  ? { boxShadow: "0 0 14px rgba(255,209,102,0.45)" }
                   : undefined
               }
             >
-              <div className="text-2xl">{b.emoji}</div>
-              <div className="text-[9px] text-center mt-1 text-white/80 leading-tight px-1">
-                {b.label}
-              </div>
+              <div className="text-xl">{b.emoji}</div>
             </div>
           );
         })}
