@@ -15,6 +15,12 @@ import {
 
 const SPIN_MS = 5200;
 const STREAK_WINDOW_MS = 5 * 60 * 1000;
+const MAX_SPINS_PER_ROUND = 3;
+
+type Warning =
+  | { kind: "respin"; remaining: number }
+  | { kind: "last" }
+  | { kind: "blocked" };
 
 export default function Game() {
   const [size, setSize] = useState(320);
@@ -27,6 +33,8 @@ export default function Game() {
   const [newBadge, setNewBadge] = useState<string | null>(null);
   const [state, setState] = useState<GameState>(INITIAL_STATE);
   const [hydrated, setHydrated] = useState(false);
+  const [spinsThisRound, setSpinsThisRound] = useState(0);
+  const [warning, setWarning] = useState<Warning | null>(null);
   const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -58,10 +66,10 @@ export default function Game() {
     [state.badges],
   );
 
-  const spin = useCallback(() => {
-    if (spinning) return;
+  const doSpin = useCallback(() => {
     setResult(null);
     setResultIndex(null);
+    setSpinsThisRound((n) => n + 1);
 
     const targetIdx = pickWeightedIndex();
     const n = DRINKS.length;
@@ -98,7 +106,33 @@ export default function Game() {
       }
     };
     rafRef.current = requestAnimationFrame(tick);
-  }, [rotation, spinning]);
+  }, [rotation]);
+
+  const spin = useCallback(() => {
+    if (spinning) return;
+    if (spinsThisRound >= MAX_SPINS_PER_ROUND) {
+      setWarning({ kind: "blocked" });
+      return;
+    }
+    if (spinsThisRound === MAX_SPINS_PER_ROUND - 1) {
+      setWarning({ kind: "last" });
+      return;
+    }
+    if (spinsThisRound >= 1) {
+      setWarning({
+        kind: "respin",
+        remaining: MAX_SPINS_PER_ROUND - spinsThisRound,
+      });
+      return;
+    }
+    doSpin();
+  }, [spinning, spinsThisRound, doSpin]);
+
+  const confirmWarning = useCallback(() => {
+    const w = warning;
+    setWarning(null);
+    if (w && w.kind !== "blocked") doSpin();
+  }, [warning, doSpin]);
 
   useEffect(() => () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -199,10 +233,21 @@ export default function Game() {
       <button
         onClick={spin}
         disabled={spinning}
-        className="btn-neon w-full max-w-md rounded-2xl py-4 font-display text-3xl text-white tracking-wider"
+        className="btn-neon w-full max-w-md rounded-2xl py-4 font-display text-3xl text-white tracking-wider relative"
         aria-label="Spin the wheel"
       >
-        {spinning ? "SPINNING…" : "SPIN THE WHEEL"}
+        {spinning
+          ? "SPINNING…"
+          : spinsThisRound === 0
+          ? "SPIN THE WHEEL"
+          : spinsThisRound >= MAX_SPINS_PER_ROUND
+          ? "CHEERS FIRST!"
+          : `SPIN AGAIN (${MAX_SPINS_PER_ROUND - spinsThisRound} LEFT)`}
+        {spinsThisRound > 0 && spinsThisRound < MAX_SPINS_PER_ROUND && (
+          <span className="absolute -top-2 -right-2 bg-amber-300 text-[#0b0416] text-xs font-bold rounded-full w-7 h-7 flex items-center justify-center border-2 border-[#0b0416]">
+            {spinsThisRound}/{MAX_SPINS_PER_ROUND}
+          </span>
+        )}
       </button>
 
       <Legend />
@@ -234,13 +279,24 @@ export default function Game() {
           onClose={() => setResult(null)}
           onCheers={() => {
             setResult(null);
+            setSpinsThisRound(0);
             setJohnnyKey((k) => k + 1);
           }}
           onAgain={() => {
             setResult(null);
             setTimeout(spin, 150);
           }}
+          spinsThisRound={spinsThisRound}
+          maxSpins={MAX_SPINS_PER_ROUND}
           streak={state.streak}
+        />
+      )}
+
+      {warning && (
+        <WarningModal
+          warning={warning}
+          onCancel={() => setWarning(null)}
+          onConfirm={confirmWarning}
         />
       )}
     </main>
@@ -343,6 +399,8 @@ function ResultModal({
   onCheers,
   onAgain,
   streak,
+  spinsThisRound,
+  maxSpins,
 }: {
   drink: Drink;
   meta: (typeof RARITY_META)[keyof typeof RARITY_META];
@@ -350,8 +408,12 @@ function ResultModal({
   onCheers: () => void;
   onAgain: () => void;
   streak: number;
+  spinsThisRound: number;
+  maxSpins: number;
 }) {
   const bonus = Math.min(streak, 5);
+  const canRespin = spinsThisRound < maxSpins;
+  const remaining = maxSpins - spinsThisRound;
   return (
     <div
       className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-3"
@@ -388,16 +450,105 @@ function ResultModal({
         <div className="mt-5 flex gap-2">
           <button
             onClick={onCheers}
-            className="flex-1 rounded-xl py-3 glass font-semibold"
+            className="flex-1 btn-neon rounded-xl py-3 font-semibold text-white"
           >
             Cheers 🥂
           </button>
+          {canRespin && (
+            <button
+              onClick={onAgain}
+              className="flex-1 rounded-xl py-3 glass font-semibold"
+            >
+              {remaining === 1 ? "Last spin ⚠️" : `Spin again (${remaining})`}
+            </button>
+          )}
+        </div>
+        {!canRespin && (
+          <p className="mt-3 text-[11px] uppercase tracking-widest text-amber-200/90">
+            No re-spins left · Cheers and drink up
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WarningModal({
+  warning,
+  onCancel,
+  onConfirm,
+}: {
+  warning: Warning;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const copy =
+    warning.kind === "blocked"
+      ? {
+          emoji: "🛑",
+          title: "CHEERS FIRST!",
+          body:
+            "Three spins, pal. You've had 'em. Press CHEERS on your drink before you touch that wheel again.",
+          cancel: "My bad",
+          confirm: null as string | null,
+          accent: "#ff2e93",
+        }
+      : warning.kind === "last"
+      ? {
+          emoji: "⚠️",
+          title: "LAST CHANCE!",
+          body:
+            "One more spin and that's what you're drinking. Johnny doesn't negotiate.",
+          cancel: "I'll take the current one",
+          confirm: "RISK IT 🎲",
+          accent: "#ffd166",
+        }
+      : {
+          emoji: "🤨",
+          title: "RE-SPIN?",
+          body: `Not feeling it? Fine. You'll have ${warning.kind === "respin" ? warning.remaining - 1 : 0} spin${
+            warning.kind === "respin" && warning.remaining - 1 === 1 ? "" : "s"
+          } left after this.`,
+          cancel: "Keep it",
+          confirm: "SPIN AGAIN",
+          accent: "#12e7ff",
+        };
+
+  return (
+    <div
+      className="fixed inset-0 z-[55] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onCancel}
+    >
+      <div
+        className="glass w-full max-w-sm rounded-3xl p-6 text-center"
+        onClick={(e) => e.stopPropagation()}
+        style={{ boxShadow: `0 0 60px ${copy.accent}88` }}
+      >
+        <div className="text-6xl mb-2" aria-hidden>
+          {copy.emoji}
+        </div>
+        <div
+          className="font-display text-4xl tracking-wider"
+          style={{ color: copy.accent, textShadow: `0 0 18px ${copy.accent}aa` }}
+        >
+          {copy.title}
+        </div>
+        <p className="mt-3 text-white/85">{copy.body}</p>
+        <div className="mt-5 flex gap-2">
           <button
-            onClick={onAgain}
-            className="flex-1 btn-neon rounded-xl py-3 font-semibold text-white"
+            onClick={onCancel}
+            className="flex-1 rounded-xl py-3 glass font-semibold"
           >
-            Spin again
+            {copy.cancel}
           </button>
+          {copy.confirm && (
+            <button
+              onClick={onConfirm}
+              className="flex-1 btn-neon rounded-xl py-3 font-semibold text-white"
+            >
+              {copy.confirm}
+            </button>
+          )}
         </div>
       </div>
     </div>
